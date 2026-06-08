@@ -113,6 +113,20 @@
     padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
   .project-row .name-input { flex: 1; background: transparent; border: none; color: var(--text); font-size: 16px; padding: 6px 0; min-width: 0; }
   .project-row .name-input:focus { outline: none; }
+  /* Sub-projects: visually indented with a connector line */
+  .project-row.indent { margin-left: 24px; position: relative; }
+  .project-row.indent::before {
+    content: ""; position: absolute;
+    left: -14px; top: 50%; width: 10px; height: 1px;
+    background: var(--border);
+  }
+  .project-row.indent::after {
+    content: ""; position: absolute;
+    left: -14px; top: -6px; bottom: 50%; width: 1px;
+    background: var(--border);
+  }
+  .icon-btn.sub { color: var(--muted); font-size: 16px; font-weight: 700; }
+  .icon-btn.sub:active { background: var(--surface-2); }
   .icon-btn { background: transparent; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 6px 10px; border-radius: 8px; }
   .icon-btn:active { background: var(--surface-2); }
   .icon-btn.danger { color: var(--red); }
@@ -506,10 +520,11 @@ function renderHeader() {
 }
 function renderPills() {
   const wrap = el("#project-pills"); wrap.innerHTML = "";
-  for (const p of state.projects) {
+  // Render in tree order so children sit next to their parent.
+  for (const { project: p } of projectsInTreeOrder()) {
     const b = document.createElement("button");
     b.className = "pill" + (p.id === state.activeProjectId ? " active" : "");
-    b.textContent = p.name;
+    b.textContent = fullProjectName(p);
     b.addEventListener("click", () => {
       if (state.running && state.running.projectId !== p.id) { stopTimer(); state.activeProjectId = p.id; startTimer(); }
       else { state.activeProjectId = p.id; }
@@ -520,7 +535,7 @@ function renderPills() {
 }
 function renderTimer() {
   const proj = state.projects.find(p => p.id === state.activeProjectId);
-  el("#active-project-name").textContent = proj ? proj.name : "—";
+  el("#active-project-name").textContent = proj ? fullProjectName(proj) : "—";
   const btn = el("#start-btn");
   if (state.running && state.running.projectId === state.activeProjectId) { btn.textContent = "STOP"; btn.classList.add("running"); }
   else { btn.textContent = "START"; btn.classList.remove("running"); }
@@ -543,7 +558,7 @@ function renderTodayList() {
     const isRunning = state.running && state.running.projectId === it.p.id;
     const row = document.createElement("div");
     row.className = "row" + (isRunning ? " running" : "");
-    row.innerHTML = `<div class="left"><div class="dot" style="background:${it.p.color}"></div><div class="name">${esc(it.p.name)}${isRunning ? " · running" : ""}</div></div><div class="time">${fmtHMS(it.ms)}</div>`;
+    row.innerHTML = `<div class="left"><div class="dot" style="background:${it.p.color}"></div><div class="name">${esc(fullProjectName(it.p))}${isRunning ? " · running" : ""}</div></div><div class="time">${fmtHMS(it.ms)}</div>`;
     wrap.appendChild(row);
   }
 }
@@ -605,7 +620,7 @@ function renderReports() {
     for (const it of items) {
       const pct = Math.max(2, Math.round((it.ms / max) * 100));
       const row = document.createElement("div"); row.className = "bar-row";
-      row.innerHTML = `<div class="top"><div class="left"><div class="dot" style="background:${it.p.color}"></div><div>${esc(it.p.name)}</div></div><div style="font-variant-numeric: tabular-nums; color: var(--muted);">${fmtHM(it.ms)}</div></div><div class="bar-bg"><div class="bar-fill" style="width:${pct}%; background: ${it.p.color}"></div></div>`;
+      row.innerHTML = `<div class="top"><div class="left"><div class="dot" style="background:${it.p.color}"></div><div>${esc(fullProjectName(it.p))}</div></div><div style="font-variant-numeric: tabular-nums; color: var(--muted);">${fmtHM(it.ms)}</div></div><div class="bar-bg"><div class="bar-fill" style="width:${pct}%; background: ${it.p.color}"></div></div>`;
       wrap.appendChild(row);
     }
   }
@@ -617,26 +632,108 @@ function renderTrackSessions() {
   const ds = startOfDay().getTime();
   renderSessionLog(el("#track-sessions"), ds, ds + 86400000, false);
 }
+/* ---------------- Sub-project helpers ---------------- */
+// Returns "Parent / Child / Grandchild" for a project (or just "Name" if top-level).
+function fullProjectName(p) {
+  if (!p) return "";
+  if (!p.parentId) return p.name;
+  const parent = state.projects.find(x => x.id === p.parentId);
+  if (!parent) return p.name; // orphaned: render leaf only
+  return fullProjectName(parent) + " / " + p.name;
+}
+
+// All descendant ids of a project (children, grandchildren, etc.).
+function descendantsOf(parentId) {
+  const out = [];
+  const stack = [parentId];
+  while (stack.length) {
+    const cur = stack.pop();
+    for (const p of state.projects) {
+      if (p.parentId === cur) { out.push(p.id); stack.push(p.id); }
+    }
+  }
+  return out;
+}
+
+// Depth-first ordered list of {project, depth} for tree rendering.
+function projectsInTreeOrder() {
+  const childrenOf = {};
+  for (const p of state.projects) {
+    const k = p.parentId || "_root";
+    if (!childrenOf[k]) childrenOf[k] = [];
+    childrenOf[k].push(p);
+  }
+  const out = [];
+  function visit(parentKey, depth) {
+    const kids = childrenOf[parentKey] || [];
+    for (const p of kids) { out.push({ project: p, depth }); visit(p.id, depth + 1); }
+  }
+  visit("_root", 0);
+  return out;
+}
+
 function renderProjects() {
   const wrap = el("#project-list"); wrap.innerHTML = "";
-  for (const p of state.projects) {
-    const row = document.createElement("div"); row.className = "project-row";
-    row.innerHTML = `<div class="dot" style="background:${p.color}"></div><input class="name-input" value="${esc(p.name)}" maxlength="40" /><button class="icon-btn" title="Color">●</button><button class="icon-btn danger" title="Delete">✕</button>`;
+  for (const { project: p, depth } of projectsInTreeOrder()) {
+    const row = document.createElement("div");
+    row.className = "project-row" + (depth > 0 ? " indent" : "");
+    row.style.marginLeft = depth > 0 ? (depth * 24) + "px" : "";
+    row.innerHTML = `
+      <div class="dot" style="background:${p.color}"></div>
+      <input class="name-input" value="${esc(p.name)}" maxlength="40" />
+      <button class="icon-btn sub" title="Add sub-project">+</button>
+      <button class="icon-btn" title="Color">●</button>
+      <button class="icon-btn danger" title="Delete">✕</button>
+    `;
     const input = row.querySelector("input");
-    const [colorBtn, delBtn] = row.querySelectorAll("button");
-    input.addEventListener("change", () => { const v = input.value.trim();
-      if (v) { p.name = v; save(); renderAll(); } else { input.value = p.name; } });
-    colorBtn.style.color = p.color;
-    colorBtn.addEventListener("click", () => { const i = COLORS.indexOf(p.color); p.color = COLORS[(i+1) % COLORS.length]; save(); renderAll(); });
-    delBtn.addEventListener("click", () => {
-      if (state.projects.length === 1) { alert("You need at least one project."); return; }
-      if (!confirm(`Delete "${p.name}"? Time entries will also be removed.`)) return;
-      if (state.running && state.running.projectId === p.id) state.running = null;
-      state.entries = state.entries.filter(e => e.projectId !== p.id);
-      state.projects = state.projects.filter(x => x.id !== p.id);
-      if (state.activeProjectId === p.id) state.activeProjectId = state.projects[0].id;
+    const [subBtn, colorBtn, delBtn] = row.querySelectorAll("button");
+
+    input.addEventListener("change", () => {
+      const v = input.value.trim();
+      if (v) { p.name = v; save(); renderAll(); } else { input.value = p.name; }
+    });
+
+    subBtn.addEventListener("click", () => {
+      const name = prompt(`Add sub-project under "${fullProjectName(p)}":`);
+      if (!name || !name.trim()) return;
+      const used = state.projects.map(x => x.color);
+      const color = COLORS.find(c => !used.includes(c)) || COLORS[state.projects.length % COLORS.length];
+      const child = { id: id(), name: name.trim(), color, parentId: p.id };
+      state.projects.push(child);
+      state.activeProjectId = child.id;
       save(); renderAll();
     });
+
+    colorBtn.style.color = p.color;
+    colorBtn.addEventListener("click", () => {
+      const i = COLORS.indexOf(p.color);
+      p.color = COLORS[(i + 1) % COLORS.length];
+      save(); renderAll();
+    });
+
+    delBtn.addEventListener("click", () => {
+      const kids = descendantsOf(p.id);
+      const isOnlyTop = state.projects.filter(x => !x.parentId).length === 1 && !p.parentId;
+      if (isOnlyTop && kids.length === 0) { alert("You need at least one project."); return; }
+      const msg = kids.length > 0
+        ? `Delete "${fullProjectName(p)}" AND its ${kids.length} sub-project${kids.length === 1 ? "" : "s"}? All time entries on these will also be removed.`
+        : `Delete "${fullProjectName(p)}"? Time entries will also be removed.`;
+      if (!confirm(msg)) return;
+      const toRemove = new Set([p.id, ...kids]);
+      if (state.running && toRemove.has(state.running.projectId)) state.running = null;
+      state.entries = state.entries.filter(e => !toRemove.has(e.projectId));
+      state.projects = state.projects.filter(x => !toRemove.has(x.id));
+      if (toRemove.has(state.activeProjectId)) {
+        state.activeProjectId = state.projects[0] ? state.projects[0].id : null;
+      }
+      // If we just deleted the last project entirely, recreate a default General.
+      if (state.projects.length === 0) {
+        const np = { id: id(), name: "General", color: COLORS[0] };
+        state.projects.push(np); state.activeProjectId = np.id;
+      }
+      save(); renderAll();
+    });
+
     wrap.appendChild(row);
   }
 }
@@ -690,7 +787,7 @@ function renderSessionLog(container, rangeStart, rangeEnd, showDayHeaders) {
     row.innerHTML = `
       <div class="dot" style="background:${proj.color}"></div>
       <div class="meta">
-        <div class="top-line">${esc(proj.name)}</div>
+        <div class="top-line">${esc(fullProjectName(proj))}</div>
         <div class="times">${fmtClock(it.start)} → ${endLabel}</div>
       </div>
       <div class="duration">${fmtHMS(dur)}</div>
@@ -723,10 +820,11 @@ let editContext = null; // { mode: "edit"|"running"|"add", entryIdx? }
 function populateProjectSelect() {
   const sel = el("#edit-project");
   sel.innerHTML = "";
-  for (const p of state.projects) {
+  // Render in tree order so the hierarchy is intuitive.
+  for (const { project: p } of projectsInTreeOrder()) {
     const opt = document.createElement("option");
     opt.value = p.id;
-    opt.textContent = p.name;
+    opt.textContent = fullProjectName(p);
     sel.appendChild(opt);
   }
 }
