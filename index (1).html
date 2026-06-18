@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>Time Tracker</title>
+
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Time Tracker" />
+<meta name="theme-color" content="#0b0d12" />
+
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23ff7a59'/><stop offset='1' stop-color='%23ff3b7a'/></linearGradient></defs><rect width='180' height='180' rx='40' fill='url(%23g)'/><circle cx='90' cy='95' r='46' fill='none' stroke='white' stroke-width='8'/><line x1='90' y1='95' x2='90' y2='62' stroke='white' stroke-width='8' stroke-linecap='round'/><line x1='90' y1='95' x2='115' y2='95' stroke='white' stroke-width='8' stroke-linecap='round'/><rect x='78' y='28' width='24' height='10' rx='3' fill='white'/></svg>" />
+
+<style>
+  :root {
+    --bg: #0b0d12; --surface: #161922; --surface-2: #1f2230; --border: #2a2e3d;
+    --text: #f3f4f8; --muted: #8a90a3; --accent: #ff5a7a; --accent-2: #ff8a5a;
+    --green: #2bd47d; --red: #ff4d6a;
+    --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px; overscroll-behavior-y: none; }
+  body { display: flex; flex-direction: column; }
+  .app { flex: 1; display: flex; flex-direction: column; max-width: 520px; width: 100%;
+    margin: 0 auto; padding-top: var(--safe-top); padding-bottom: calc(72px + var(--safe-bottom)); overflow: hidden; }
+  header { padding: 18px 20px 8px; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 22px; font-weight: 700; margin: 0; letter-spacing: -0.02em; }
+  header .date { color: var(--muted); font-size: 13px; }
+  .sync-indicator {
+    display: flex; align-items: center; gap: 6px;
+    color: var(--muted); font-size: 11px;
+    cursor: default;
+  }
+  .sync-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green); transition: background 0.2s;
+  }
+  .sync-indicator.syncing .sync-dot { background: var(--accent-2); animation: pulse-dot 1s ease-in-out infinite; }
+  .sync-indicator.error   .sync-dot { background: var(--red); }
+  @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  main { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px 20px 20px; }
+  .project-pill-row { display: flex; gap: 8px; overflow-x: auto; padding: 6px 0 14px; scrollbar-width: none; }
+  .project-pill-row::-webkit-scrollbar { display: none; }
+  .pill { background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 14px; border-radius: 999px; font-size: 14px; white-space: nowrap; cursor: pointer; transition: transform 0.05s ease; }
+  .pill.active { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border-color: transparent; color: white; font-weight: 600; }
+  .pill:active { transform: scale(0.96); }
+  .timer-card { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 28px 20px 32px; text-align: center; margin-top: 8px; }
+  .timer-card .label { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .timer-card .project-name { font-size: 18px; font-weight: 600; margin: 6px 0 18px; }
+  .timer-display { font-size: 56px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; margin: 6px 0 22px; }
+  .start-btn { width: 168px; height: 168px; border-radius: 50%; border: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: white;
+    font-size: 22px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    cursor: pointer; box-shadow: 0 12px 30px rgba(255, 90, 122, 0.35); transition: transform 0.08s ease, box-shadow 0.2s ease; }
+  .start-btn:active { transform: scale(0.96); }
+  .start-btn.running { background: linear-gradient(135deg, #ff4d6a, #c2185b);
+    box-shadow: 0 12px 30px rgba(255, 77, 106, 0.45); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 12px 30px rgba(255, 77, 106, 0.45); } 50% { box-shadow: 0 12px 38px rgba(255, 77, 106, 0.7); } }
+  .today-list { margin-top: 26px; }
+  .section-title { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 4px 10px; font-weight: 600; }
+  .row { background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .row .left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 12px; }
+  .row .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .time { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .row.running .time { color: var(--green); font-weight: 600; }
+  .empty { color: var(--muted); text-align: center; padding: 30px 10px; font-size: 14px; }
+  .report-tabs { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px; margin-bottom: 16px; }
+  .report-tabs button { flex: 1; background: transparent; border: none; color: var(--muted); padding: 10px; border-radius: 9px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .report-tabs button.active { background: var(--surface-2); color: var(--text); }
+  .period-nav {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 4px; margin-bottom: 12px;
+  }
+  .period-nav button {
+    background: transparent; border: none; color: var(--text);
+    width: 40px; height: 40px; font-size: 18px; cursor: pointer; border-radius: 8px;
+  }
+  .period-nav button:disabled { color: var(--border); cursor: not-allowed; }
+  .period-nav button:not(:disabled):active { background: var(--surface-2); }
+  .period-nav .label {
+    flex: 1; text-align: center;
+    font-size: 15px; font-weight: 600;
+    cursor: pointer; padding: 6px 8px; border-radius: 8px;
+  }
+  .period-nav .label:active { background: var(--surface-2); }
+  .period-nav .label .sub {
+    display: block; font-size: 11px; color: var(--muted); font-weight: 500; margin-top: 2px;
+  }
+  .total-banner { background: linear-gradient(135deg, rgba(255, 90, 122, 0.18), rgba(255, 138, 90, 0.12));
+    border: 1px solid rgba(255, 90, 122, 0.35); border-radius: 16px; padding: 18px 18px; margin-bottom: 18px; }
+  .total-banner .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .total-banner .value { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 4px; }
+  .bar-row { margin-bottom: 14px; }
+  .bar-row .top { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px; }
+  .bar-row .top .left { display: flex; gap: 8px; align-items: center; }
+  .bar-row .bar-bg { width: 100%; height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+  .bar-row .bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+  .add-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .add-row input { flex: 1; background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    padding: 12px 14px; border-radius: 12px; font-size: 16px; }
+  .add-row input:focus { outline: none; border-color: var(--accent); }
+  .add-row button { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: white;
+    border: none; padding: 0 18px; border-radius: 12px; font-weight: 600; cursor: pointer; font-size: 15px; }
+  .project-row { background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 12px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+  .project-row .name-input { flex: 1; background: transparent; border: none; color: var(--text); font-size: 16px; padding: 6px 0; min-width: 0; }
+  .project-row .name-input:focus { outline: none; }
+  /* Sub-projects: visually indented with a connector line */
+  .project-row.indent { margin-left: 24px; position: relative; }
+  .project-row.indent::before {
+    content: ""; position: absolute;
+    left: -14px; top: 50%; width: 10px; height: 1px;
+    background: var(--border);
+  }
+  .project-row.indent::after {
+    content: ""; position: absolute;
+    left: -14px; top: -6px; bottom: 50%; width: 1px;
+    background: var(--border);
+  }
+  .icon-btn.sub { color: var(--muted); font-size: 16px; font-weight: 700; }
+  .icon-btn.sub:active { background: var(--surface-2); }
+  .icon-btn { background: transparent; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 6px 10px; border-radius: 8px; }
+  .icon-btn:active { background: var(--surface-2); }
+  .icon-btn.danger { color: var(--red); }
+  nav.tabbar { position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(11, 13, 18, 0.85); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-top: 1px solid var(--border); display: flex; justify-content: space-around;
+    padding: 8px 0 calc(8px + var(--safe-bottom)); z-index: 10; }
+  nav.tabbar button { flex: 1; background: transparent; border: none; color: var(--muted);
+    padding: 6px 0; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  nav.tabbar button.active { color: var(--text); }
+  nav.tabbar svg { width: 24px; height: 24px; }
+  .view { display: none; }
+  .view.active { display: block; animation: fade 0.18s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  /* Session log */
+  .session-list { margin-top: 22px; }
+  .session-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 12px; margin-bottom: 6px;
+  }
+  .session-row .meta { flex: 1; min-width: 0; }
+  .session-row .top-line {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 14px; font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .session-row .times {
+    font-size: 12px; color: var(--muted); margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .session-row .duration {
+    font-size: 13px; font-variant-numeric: tabular-nums;
+    color: var(--muted); margin-right: 4px;
+  }
+  .session-row.running { border-color: rgba(43, 212, 125, 0.5); }
+  .session-row.running .duration { color: var(--green); font-weight: 600; }
+  .session-row.running .top-line::after {
+    content: ""; display: inline-block;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green); margin-left: 4px;
+    animation: blink 1.2s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .session-row .day-label {
+    font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .session-day-header {
+    font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em;
+    margin: 14px 4px 6px; font-weight: 600;
+  }
+  .section-head {
+    display: flex; align-items: center; justify-content: space-between; margin: 0 4px 10px;
+  }
+  .section-head .section-title { margin: 0; }
+  .add-session-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--text);
+    padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .add-session-btn:active { background: var(--surface-2); }
+  .session-row { cursor: pointer; }
+  .session-row:active { background: var(--surface-2); }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    display: flex; align-items: flex-end; justify-content: center;
+    z-index: 100; padding: 0;
+  }
+  .modal-backdrop[hidden] { display: none; }
+  .modal {
+    width: 100%; max-width: 520px;
+    background: var(--surface);
+    border-top-left-radius: 24px; border-top-right-radius: 24px;
+    border-top: 1px solid var(--border);
+    padding: 22px 20px calc(22px + var(--safe-bottom));
+    animation: slide-up 0.22s ease;
+  }
+  @keyframes slide-up { from { transform: translateY(100%); } to { transform: none; } }
+  .modal h3 { margin: 0 0 16px; font-size: 18px; font-weight: 700; }
+  .modal label {
+    display: block; font-size: 12px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.08em; margin: 12px 2px 6px; font-weight: 600;
+  }
+  .modal select, .modal input[type="datetime-local"] {
+    width: 100%; background: var(--surface-2);
+    border: 1px solid var(--border); color: var(--text);
+    padding: 12px 14px; border-radius: 12px; font-size: 16px;
+    font-family: inherit; -webkit-appearance: none; appearance: none;
+  }
+  .modal select:focus, .modal input:focus { outline: none; border-color: var(--accent); }
+  .modal .error {
+    color: var(--red); font-size: 13px; margin-top: 10px; text-align: center;
+  }
+  .modal-actions {
+    display: flex; gap: 8px; margin-top: 20px;
+  }
+  .modal-actions button {
+    flex: 1; padding: 13px; border-radius: 12px; border: none;
+    font-weight: 600; font-size: 15px; cursor: pointer; font-family: inherit;
+  }
+  .btn-cancel { background: var(--surface-2); color: var(--text); }
+  .btn-delete { background: rgba(255, 77, 106, 0.15); color: var(--red); }
+  .btn-save {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: white;
+  }
+  .modal-actions button:active { transform: scale(0.97); }
+  .stop-now-btn {
+    width: 100%; margin-top: 8px;
+    padding: 12px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--surface-2); color: var(--text);
+    font-weight: 600; font-size: 14px; cursor: pointer; font-family: inherit;
+  }
+  .data-section .data-info {
+    color: var(--muted); font-size: 13px; margin-bottom: 10px;
+  }
+  .data-section .data-buttons { display: flex; gap: 8px; }
+  .data-section .data-btn {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); padding: 12px; border-radius: 12px;
+    font-weight: 600; font-size: 14px; cursor: pointer; font-family: inherit;
+  }
+  .data-section .data-btn:active { background: var(--surface-2); }
+  .data-section .data-help {
+    color: var(--muted); font-size: 12px; margin-top: 12px; line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <div>
+      <h1 id="header-title">Today</h1>
+      <div class="date" id="header-date"></div>
+    </div>
+    <div class="sync-indicator" id="sync-indicator" title="Synced">
+      <div class="sync-dot"></div>
+      <span id="sync-label">Synced</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="view active" id="view-track">
+      <div class="project-pill-row" id="project-pills"></div>
+      <div class="timer-card">
+        <div class="label">Tracking</div>
+        <div class="project-name" id="active-project-name">—</div>
+        <div class="timer-display" id="timer-display">00:00:00</div>
+        <button class="start-btn" id="start-btn">START</button>
+      </div>
+      <div class="today-list">
+        <div class="section-title">Today</div>
+        <div id="today-rows"></div>
+      </div>
+      <div class="session-list">
+        <div class="section-head">
+          <div class="section-title">Today's sessions</div>
+          <button class="add-session-btn" data-add="track">+ Add</button>
+        </div>
+        <div id="track-sessions"></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-reports">
+      <div class="report-tabs">
+        <button data-range="day" class="active">Day</button>
+        <button data-range="week">Week</button>
+        <button data-range="month">Month</button>
+      </div>
+      <div class="period-nav">
+        <button id="period-prev" aria-label="Previous">◀</button>
+        <div class="label" id="period-label">Today<span class="sub" id="period-sub"></span></div>
+        <button id="period-next" aria-label="Next">▶</button>
+      </div>
+      <div class="total-banner">
+        <div class="label" id="report-label">Today</div>
+        <div class="value" id="report-total">00:00:00</div>
+      </div>
+      <div id="report-bars"></div>
+      <div class="session-list">
+        <div class="section-head">
+          <div class="section-title">Sessions</div>
+          <button class="add-session-btn" data-add="reports">+ Add</button>
+        </div>
+        <div id="report-sessions"></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-projects">
+      <div class="add-row">
+        <input id="new-project-input" placeholder="New project name" maxlength="40" />
+        <button id="add-project-btn">Add</button>
+      </div>
+      <div id="project-list"></div>
+
+      <div class="data-section">
+        <div class="section-title" style="margin-top: 28px;">Data</div>
+        <div class="data-info" id="data-info">No data yet.</div>
+        <div class="data-buttons">
+          <button class="data-btn" id="export-btn">Export backup</button>
+          <button class="data-btn" id="import-btn">Import backup</button>
+        </div>
+        <input type="file" id="import-file" accept="application/json,.json" hidden />
+        <p class="data-help">Use Export to save a backup file. Use Import on a new device or new URL to restore your projects and time entries.</p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button data-view="track" class="active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      Track
+    </button>
+    <button data-view="reports">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9"/><path d="M10 19V5"/><path d="M16 19v-7"/><path d="M22 19H2"/></svg>
+      Reports
+    </button>
+    <button data-view="projects">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18"/><path d="M3 12h18"/><path d="M3 17h12"/></svg>
+      Projects
+    </button>
+  </nav>
+</div>
+
+<!-- Edit / Add session modal -->
+<div class="modal-backdrop" id="edit-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <h3 id="modal-title">Edit session</h3>
+
+    <label for="edit-project">Project</label>
+    <select id="edit-project"></select>
+
+    <label for="edit-start">Start</label>
+    <input type="datetime-local" id="edit-start" />
+
+    <div id="edit-end-group">
+      <label for="edit-end">End</label>
+      <input type="datetime-local" id="edit-end" />
+    </div>
+
+    <button class="stop-now-btn" id="stop-now-btn" hidden>Stop now and save</button>
+
+    <div class="error" id="edit-error" hidden></div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" id="edit-cancel">Cancel</button>
+      <button class="btn-delete" id="edit-delete" hidden>Delete</button>
+      <button class="btn-save" id="edit-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = "timeTracker_v1";
+const COLORS = ["#ff5a7a","#ff8a5a","#ffc857","#2bd47d","#5ac8ff","#7a5cff","#d65cff","#9ca3af"];
+
+// --- Cloud sync (Supabase REST) ---
+const SUPA_URL = "https://dqujldipatjnqepalbli.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxdWpsZGlwYXRqbnFlcGFsYmxpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4Njk4NzAsImV4cCI6MjA5NjQ0NTg3MH0.8zIgYlYhHgyC8-c4m6f-GNeIYpZ3m7wAt0Aq9kufZag";
+const SUPA_ROW_ID = "main"; // single-user, single row
+
+let pendingUpload = false;     // we have local changes not yet sent to cloud
+let applyingCloud = false;     // we are currently overwriting local state from cloud — don't echo back
+let lastCloudUpdatedAt = null; // ISO timestamp of the cloud row we last saw/wrote
+let uploadTimer = null;
+
+function setSyncStatus(s, label) {
+  const el = document.getElementById("sync-indicator");
+  if (!el) return;
+  el.classList.remove("syncing","error");
+  if (s === "syncing") el.classList.add("syncing");
+  if (s === "error") el.classList.add("error");
+  const txt = document.getElementById("sync-label");
+  if (txt) txt.textContent = label || (s === "syncing" ? "Syncing…" : s === "error" ? "Offline" : "Synced");
+  el.title = txt ? txt.textContent : "";
+}
+
+async function cloudFetch() {
+  setSyncStatus("syncing");
+  try {
+    const url = `${SUPA_URL}/rest/v1/tracker_state?id=eq.${SUPA_ROW_ID}&select=*`;
+    const res = await fetch(url, { headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` } });
+    if (!res.ok) throw new Error("fetch " + res.status);
+    const rows = await res.json();
+    setSyncStatus("idle");
+    return rows[0] || null;
+  } catch (e) {
+    setSyncStatus("error");
+    return null;
+  }
+}
+
+async function cloudUpload(payload) {
+  setSyncStatus("syncing");
+  try {
+    const body = JSON.stringify({ id: SUPA_ROW_ID, data: payload });
+    const res = await fetch(`${SUPA_URL}/rest/v1/tracker_state`, {
+      method: "POST",
+      headers: {
+        apikey: SUPA_KEY,
+        Authorization: `Bearer ${SUPA_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=representation"
+      },
+      body
+    });
+    if (!res.ok) throw new Error("upload " + res.status + " " + await res.text());
+    const rows = await res.json();
+    if (rows[0]) lastCloudUpdatedAt = rows[0].updated_at;
+    pendingUpload = false;
+    setSyncStatus("idle");
+    return true;
+  } catch (e) {
+    setSyncStatus("error");
+    return false;
+  }
+}
+
+function queueUpload() {
+  pendingUpload = true;
+  if (uploadTimer) clearTimeout(uploadTimer);
+  uploadTimer = setTimeout(() => {
+    uploadTimer = null;
+    cloudUpload(state);
+  }, 500); // debounce: coalesce rapid edits into one POST
+}
+const defaultState = () => ({ projects: [{ id: id(), name: "General", color: COLORS[0] }], activeProjectId: null, entries: [], running: null });
+function id() { return Math.random().toString(36).slice(2, 10); }
+function load() {
+  try { const raw = localStorage.getItem(STORAGE_KEY); if (!raw) return defaultState();
+    const s = JSON.parse(raw); if (!s.projects || s.projects.length === 0) return defaultState();
+    if (!s.activeProjectId) s.activeProjectId = s.projects[0].id; return s;
+  } catch (e) { return defaultState(); }
+}
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (!applyingCloud) queueUpload();
+}
+let state = load();
+if (!state.activeProjectId) state.activeProjectId = state.projects[0].id;
+
+function fmtHMS(ms) { if (ms < 0) ms = 0; const t = Math.floor(ms/1000);
+  const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = t%60;
+  return [h,m,s].map(n => String(n).padStart(2, "0")).join(":"); }
+function fmtHM(ms) { if (ms < 0) ms = 0; const tm = Math.floor(ms/60000);
+  const h = Math.floor(tm/60), m = tm%60; if (h === 0) return `${m}m`;
+  return `${h}h ${String(m).padStart(2,"0")}m`; }
+function fmtClock(ms) {
+  return new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+function fmtDayLabel(ms) {
+  const d = new Date(ms); const t = startOfDay(new Date()).getTime();
+  if (ms >= t) return "Today";
+  if (ms >= t - 86400000) return "Yesterday";
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+function dayKey(ms) { const d = new Date(ms); d.setHours(0,0,0,0); return d.getTime(); }
+// Convert a ms timestamp to the local "YYYY-MM-DDTHH:MM" format the datetime-local input expects.
+function toLocalInput(ms) {
+  const d = new Date(ms); const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+// Reverse: a datetime-local string ("YYYY-MM-DDTHH:MM") -> ms in local time.
+function fromLocalInput(s) { return new Date(s).getTime(); }
+function startOfDay(d = new Date()) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
+function startOfWeek(d = new Date()) { const x = startOfDay(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); return x; }
+function startOfMonth(d = new Date()) { const x = startOfDay(d); x.setDate(1); return x; }
+function overlap(es, ee, rs, re) { const s = Math.max(es, rs); const e = Math.min(ee, re); return Math.max(0, e - s); }
+
+function totalsByProject(rs, re) {
+  const t = {}; for (const p of state.projects) t[p.id] = 0;
+  for (const en of state.entries) { if (t[en.projectId] === undefined) continue;
+    t[en.projectId] += overlap(en.start, en.end, rs, re); }
+  if (state.running) { const r = state.running;
+    if (t[r.projectId] !== undefined) t[r.projectId] += overlap(r.start, Date.now(), rs, re); }
+  return t;
+}
+
+const el = (s) => document.querySelector(s);
+const els = (s) => document.querySelectorAll(s);
+
+function renderHeader() {
+  const titles = { track: "Today", reports: "Reports", projects: "Projects" };
+  el("#header-title").textContent = titles[currentView];
+  el("#header-date").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+}
+function renderPills() {
+  const wrap = el("#project-pills"); wrap.innerHTML = "";
+  // Render in tree order so children sit next to their parent.
+  for (const { project: p } of projectsInTreeOrder()) {
+    const b = document.createElement("button");
+    b.className = "pill" + (p.id === state.activeProjectId ? " active" : "");
+    b.textContent = fullProjectName(p);
+    b.addEventListener("click", () => {
+      if (state.running && state.running.projectId !== p.id) { stopTimer(); state.activeProjectId = p.id; startTimer(); }
+      else { state.activeProjectId = p.id; }
+      save(); renderAll();
+    });
+    wrap.appendChild(b);
+  }
+}
+function renderTimer() {
+  const proj = state.projects.find(p => p.id === state.activeProjectId);
+  el("#active-project-name").textContent = proj ? fullProjectName(proj) : "—";
+  const btn = el("#start-btn");
+  if (state.running && state.running.projectId === state.activeProjectId) { btn.textContent = "STOP"; btn.classList.add("running"); }
+  else { btn.textContent = "START"; btn.classList.remove("running"); }
+  updateTimerDisplay();
+}
+function updateTimerDisplay() {
+  const ds = startOfDay().getTime(); const de = ds + 86400000;
+  const tot = totalsByProject(ds, de);
+  el("#timer-display").textContent = fmtHMS(tot[state.activeProjectId] || 0);
+}
+function renderTodayList() {
+  const wrap = el("#today-rows"); wrap.innerHTML = "";
+  const ds = startOfDay().getTime(); const de = ds + 86400000;
+  const tot = totalsByProject(ds, de);
+  const items = state.projects.map(p => ({ p, ms: tot[p.id] || 0 })).sort((a,b) => b.ms - a.ms);
+  const anyTime = items.some(i => i.ms > 0) || state.running;
+  if (!anyTime) { wrap.innerHTML = '<div class="empty">No time logged today yet — pick a project and tap START.</div>'; return; }
+  for (const it of items) {
+    if (it.ms === 0 && !(state.running && state.running.projectId === it.p.id)) continue;
+    const isRunning = state.running && state.running.projectId === it.p.id;
+    const row = document.createElement("div");
+    row.className = "row" + (isRunning ? " running" : "");
+    row.innerHTML = `<div class="left"><div class="dot" style="background:${it.p.color}"></div><div class="name">${esc(fullProjectName(it.p))}${isRunning ? " · running" : ""}</div></div><div class="time">${fmtHMS(it.ms)}</div>`;
+    wrap.appendChild(row);
+  }
+}
+// Compute the {rangeStart, rangeEnd, label, sub, isCurrent} for the current view + offset.
+// offset 0 = current period; positive = past; negative = future (we cap at 0).
+function computeRange() {
+  const now = new Date();
+  const off = Math.max(0, currentRangeOffset|0);
+  if (currentRange === "day") {
+    const anchor = new Date(startOfDay(now)); anchor.setDate(anchor.getDate() - off);
+    const rs = anchor.getTime(); const re = rs + 86400000;
+    let label, sub = "";
+    if (off === 0) { label = "Today"; sub = anchor.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }); }
+    else if (off === 1) { label = "Yesterday"; sub = anchor.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }); }
+    else { label = anchor.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }); sub = `${off} days ago`; }
+    return { rs, re, label, sub, isCurrent: off === 0 };
+  }
+  if (currentRange === "week") {
+    const anchor = new Date(startOfWeek(now)); anchor.setDate(anchor.getDate() - off * 7);
+    const rs = anchor.getTime(); const re = rs + 7 * 86400000;
+    const endVisible = new Date(re - 86400000); // last day of week (Sunday)
+    const fmt = { month: "short", day: "numeric" };
+    const sameMonth = anchor.getMonth() === endVisible.getMonth();
+    const subRange = sameMonth
+      ? `${anchor.toLocaleDateString(undefined, fmt)} – ${endVisible.getDate()}`
+      : `${anchor.toLocaleDateString(undefined, fmt)} – ${endVisible.toLocaleDateString(undefined, fmt)}`;
+    let label;
+    if (off === 0) label = "This week";
+    else if (off === 1) label = "Last week";
+    else label = `${off} weeks ago`;
+    return { rs, re, label, sub: subRange, isCurrent: off === 0 };
+  }
+  // month
+  const anchor = new Date(now.getFullYear(), now.getMonth() - off, 1);
+  const next = new Date(now.getFullYear(), now.getMonth() - off + 1, 1);
+  const rs = anchor.getTime(); const re = next.getTime();
+  let label;
+  if (off === 0) label = "This month";
+  else if (off === 1) label = "Last month";
+  else label = `${off} months ago`;
+  const sub = anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  return { rs, re, label, sub, isCurrent: off === 0 };
+}
+
+function renderReports() {
+  const { rs, re, label, sub, isCurrent } = computeRange();
+  const tot = totalsByProject(rs, re);
+  const total = Object.values(tot).reduce((a,b) => a+b, 0);
+  el("#report-label").textContent = label;
+  el("#period-label").firstChild.textContent = label;
+  el("#period-sub").textContent = sub;
+  el("#period-next").disabled = isCurrent;
+  el("#report-total").textContent = fmtHMS(total);
+  const items = state.projects.map(p => ({ p, ms: tot[p.id] || 0 })).filter(it => it.ms > 0).sort((a,b) => b.ms - a.ms);
+  const wrap = el("#report-bars"); wrap.innerHTML = "";
+  if (items.length === 0) { wrap.innerHTML = '<div class="empty">Nothing tracked in this period yet.</div>'; }
+  else {
+    const max = items[0].ms || 1;
+    for (const it of items) {
+      const pct = Math.max(2, Math.round((it.ms / max) * 100));
+      const row = document.createElement("div"); row.className = "bar-row";
+      row.innerHTML = `<div class="top"><div class="left"><div class="dot" style="background:${it.p.color}"></div><div>${esc(fullProjectName(it.p))}</div></div><div style="font-variant-numeric: tabular-nums; color: var(--muted);">${fmtHM(it.ms)}</div></div><div class="bar-bg"><div class="bar-fill" style="width:${pct}%; background: ${it.p.color}"></div></div>`;
+      wrap.appendChild(row);
+    }
+  }
+  // Session log for the selected range; show day headers for week/month
+  renderSessionLog(el("#report-sessions"), rs, re, currentRange !== "day");
+}
+
+function renderTrackSessions() {
+  const ds = startOfDay().getTime();
+  renderSessionLog(el("#track-sessions"), ds, ds + 86400000, false);
+}
+/* ---------------- Sub-project helpers ---------------- */
+// Returns "Parent / Child / Grandchild" for a project (or just "Name" if top-level).
+function fullProjectName(p) {
+  if (!p) return "";
+  if (!p.parentId) return p.name;
+  const parent = state.projects.find(x => x.id === p.parentId);
+  if (!parent) return p.name; // orphaned: render leaf only
+  return fullProjectName(parent) + " / " + p.name;
+}
+
+// All descendant ids of a project (children, grandchildren, etc.).
+function descendantsOf(parentId) {
+  const out = [];
+  const stack = [parentId];
+  while (stack.length) {
+    const cur = stack.pop();
+    for (const p of state.projects) {
+      if (p.parentId === cur) { out.push(p.id); stack.push(p.id); }
+    }
+  }
+  return out;
+}
+
+// Depth-first ordered list of {project, depth} for tree rendering.
+function projectsInTreeOrder() {
+  const childrenOf = {};
+  for (const p of state.projects) {
+    const k = p.parentId || "_root";
+    if (!childrenOf[k]) childrenOf[k] = [];
+    childrenOf[k].push(p);
+  }
+  const out = [];
+  function visit(parentKey, depth) {
+    const kids = childrenOf[parentKey] || [];
+    for (const p of kids) { out.push({ project: p, depth }); visit(p.id, depth + 1); }
+  }
+  visit("_root", 0);
+  return out;
+}
+
+function renderProjects() {
+  const wrap = el("#project-list"); wrap.innerHTML = "";
+  for (const { project: p, depth } of projectsInTreeOrder()) {
+    const row = document.createElement("div");
+    row.className = "project-row" + (depth > 0 ? " indent" : "");
+    row.style.marginLeft = depth > 0 ? (depth * 24) + "px" : "";
+    row.innerHTML = `
+      <div class="dot" style="background:${p.color}"></div>
+      <input class="name-input" value="${esc(p.name)}" maxlength="40" />
+      <button class="icon-btn sub" title="Add sub-project">+</button>
+      <button class="icon-btn" title="Color">●</button>
+      <button class="icon-btn danger" title="Delete">✕</button>
+    `;
+    const input = row.querySelector("input");
+    const [subBtn, colorBtn, delBtn] = row.querySelectorAll("button");
+
+    input.addEventListener("change", () => {
+      const v = input.value.trim();
+      if (v) { p.name = v; save(); renderAll(); } else { input.value = p.name; }
+    });
+
+    subBtn.addEventListener("click", () => {
+      const name = prompt(`Add sub-project under "${fullProjectName(p)}":`);
+      if (!name || !name.trim()) return;
+      const used = state.projects.map(x => x.color);
+      const color = COLORS.find(c => !used.includes(c)) || COLORS[state.projects.length % COLORS.length];
+      const child = { id: id(), name: name.trim(), color, parentId: p.id };
+      state.projects.push(child);
+      state.activeProjectId = child.id;
+      save(); renderAll();
+    });
+
+    colorBtn.style.color = p.color;
+    colorBtn.addEventListener("click", () => {
+      const i = COLORS.indexOf(p.color);
+      p.color = COLORS[(i + 1) % COLORS.length];
+      save(); renderAll();
+    });
+
+    delBtn.addEventListener("click", () => {
+      const kids = descendantsOf(p.id);
+      const isOnlyTop = state.projects.filter(x => !x.parentId).length === 1 && !p.parentId;
+      if (isOnlyTop && kids.length === 0) { alert("You need at least one project."); return; }
+      const msg = kids.length > 0
+        ? `Delete "${fullProjectName(p)}" AND its ${kids.length} sub-project${kids.length === 1 ? "" : "s"}? All time entries on these will also be removed.`
+        : `Delete "${fullProjectName(p)}"? Time entries will also be removed.`;
+      if (!confirm(msg)) return;
+      const toRemove = new Set([p.id, ...kids]);
+      if (state.running && toRemove.has(state.running.projectId)) state.running = null;
+      state.entries = state.entries.filter(e => !toRemove.has(e.projectId));
+      state.projects = state.projects.filter(x => !toRemove.has(x.id));
+      if (toRemove.has(state.activeProjectId)) {
+        state.activeProjectId = state.projects[0] ? state.projects[0].id : null;
+      }
+      // If we just deleted the last project entirely, recreate a default General.
+      if (state.projects.length === 0) {
+        const np = { id: id(), name: "General", color: COLORS[0] };
+        state.projects.push(np); state.activeProjectId = np.id;
+      }
+      save(); renderAll();
+    });
+
+    wrap.appendChild(row);
+  }
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+/* Build session list for a date range. Includes the running session if it overlaps.
+   showDayHeaders=true splits sessions into day groups (used for week/month views). */
+function renderSessionLog(container, rangeStart, rangeEnd, showDayHeaders) {
+  container.innerHTML = "";
+  const projById = {}; for (const p of state.projects) projById[p.id] = p;
+
+  // Collect everything that overlaps the range
+  const items = [];
+  for (let i = 0; i < state.entries.length; i++) {
+    const e = state.entries[i];
+    if (e.end <= rangeStart || e.start >= rangeEnd) continue;
+    items.push({ ...e, idx: i, running: false });
+  }
+  if (state.running) {
+    const r = state.running;
+    if (Date.now() > rangeStart && r.start < rangeEnd) {
+      items.push({ projectId: r.projectId, start: r.start, end: Date.now(), idx: -1, running: true });
+    }
+  }
+  // Newest first
+  items.sort((a, b) => b.start - a.start);
+
+  if (items.length === 0) {
+    container.innerHTML = '<div class="empty">No sessions in this period yet.</div>';
+    return;
+  }
+
+  let lastDayKey = null;
+  for (const it of items) {
+    if (showDayHeaders) {
+      const k = dayKey(it.start);
+      if (k !== lastDayKey) {
+        const h = document.createElement("div");
+        h.className = "session-day-header";
+        h.textContent = fmtDayLabel(it.start);
+        container.appendChild(h);
+        lastDayKey = k;
+      }
+    }
+    const proj = projById[it.projectId];
+    if (!proj) continue;
+    const row = document.createElement("div");
+    row.className = "session-row" + (it.running ? " running" : "");
+    const dur = it.end - it.start;
+    const endLabel = it.running ? "now" : fmtClock(it.end);
+    row.innerHTML = `
+      <div class="dot" style="background:${proj.color}"></div>
+      <div class="meta">
+        <div class="top-line">${esc(fullProjectName(proj))}</div>
+        <div class="times">${fmtClock(it.start)} → ${endLabel}</div>
+      </div>
+      <div class="duration">${fmtHMS(dur)}</div>
+    `;
+    // Tap row to edit. For the running session pass null idx; for logged sessions use it.idx.
+    const idx = it.idx;
+    const isRunning = it.running;
+    row.addEventListener("click", () => {
+      openEditModal(isRunning ? { mode: "running" } : { mode: "edit", entryIdx: idx });
+    });
+    container.appendChild(row);
+  }
+}
+
+function startTimer() { if (state.running) return; state.running = { projectId: state.activeProjectId, start: Date.now() }; save(); renderAll(); }
+function stopTimer() { if (!state.running) return; const r = state.running; const end = Date.now();
+  if (end - r.start > 1000) state.entries.push({ projectId: r.projectId, start: r.start, end });
+  state.running = null; save(); renderAll(); }
+function toggleTimer() {
+  if (state.running && state.running.projectId === state.activeProjectId) stopTimer();
+  else if (state.running) { stopTimer(); startTimer(); }
+  else startTimer();
+}
+
+el("#start-btn").addEventListener("click", toggleTimer);
+
+/* ---------------- Edit / add session modal ---------------- */
+let editContext = null; // { mode: "edit"|"running"|"add", entryIdx? }
+
+function populateProjectSelect() {
+  const sel = el("#edit-project");
+  sel.innerHTML = "";
+  // Render in tree order so the hierarchy is intuitive.
+  for (const { project: p } of projectsInTreeOrder()) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = fullProjectName(p);
+    sel.appendChild(opt);
+  }
+}
+
+function openEditModal(ctx) {
+  editContext = ctx;
+  populateProjectSelect();
+  const titleEl = el("#modal-title");
+  const endGroup = el("#edit-end-group");
+  const stopBtn = el("#stop-now-btn");
+  const delBtn = el("#edit-delete");
+  const errEl = el("#edit-error"); errEl.hidden = true; errEl.textContent = "";
+
+  if (ctx.mode === "running") {
+    const r = state.running;
+    titleEl.textContent = "Edit running session";
+    el("#edit-project").value = r.projectId;
+    el("#edit-start").value = toLocalInput(r.start);
+    endGroup.hidden = true;
+    stopBtn.hidden = false;
+    delBtn.hidden = true;
+  } else if (ctx.mode === "edit") {
+    const en = state.entries[ctx.entryIdx];
+    titleEl.textContent = "Edit session";
+    el("#edit-project").value = en.projectId;
+    el("#edit-start").value = toLocalInput(en.start);
+    el("#edit-end").value = toLocalInput(en.end);
+    endGroup.hidden = false;
+    stopBtn.hidden = true;
+    delBtn.hidden = false;
+  } else { // add
+    titleEl.textContent = "Add session";
+    el("#edit-project").value = state.activeProjectId;
+    const now = Date.now();
+    el("#edit-start").value = toLocalInput(now - 30 * 60000); // default: 30 min ago
+    el("#edit-end").value = toLocalInput(now);
+    endGroup.hidden = false;
+    stopBtn.hidden = true;
+    delBtn.hidden = true;
+  }
+
+  el("#edit-modal").hidden = false;
+}
+
+function closeEditModal() {
+  el("#edit-modal").hidden = true;
+  editContext = null;
+}
+
+function showEditError(msg) {
+  const e = el("#edit-error");
+  e.textContent = msg; e.hidden = false;
+}
+
+el("#edit-cancel").addEventListener("click", closeEditModal);
+// Tap outside modal to close
+el("#edit-modal").addEventListener("click", (e) => {
+  if (e.target === el("#edit-modal")) closeEditModal();
+});
+
+el("#edit-save").addEventListener("click", () => {
+  if (!editContext) return;
+  const projectId = el("#edit-project").value;
+  if (!state.projects.find(p => p.id === projectId)) return showEditError("Pick a project.");
+  const startStr = el("#edit-start").value;
+  if (!startStr) return showEditError("Set a start time.");
+  const startMs = fromLocalInput(startStr);
+  if (isNaN(startMs)) return showEditError("Invalid start time.");
+
+  if (editContext.mode === "running") {
+    if (startMs > Date.now()) return showEditError("Start can't be in the future.");
+    state.running.projectId = projectId;
+    state.running.start = startMs;
+    save(); renderAll(); closeEditModal();
+    return;
+  }
+
+  // edit or add: need an end too
+  const endStr = el("#edit-end").value;
+  if (!endStr) return showEditError("Set an end time.");
+  const endMs = fromLocalInput(endStr);
+  if (isNaN(endMs)) return showEditError("Invalid end time.");
+  if (endMs <= startMs) return showEditError("End must be after start.");
+
+  if (editContext.mode === "edit") {
+    const idx = editContext.entryIdx;
+    if (idx == null || !state.entries[idx]) return showEditError("Session not found.");
+    state.entries[idx] = { projectId, start: startMs, end: endMs };
+  } else { // add
+    state.entries.push({ projectId, start: startMs, end: endMs });
+  }
+  save(); renderAll(); closeEditModal();
+});
+
+el("#edit-delete").addEventListener("click", () => {
+  if (!editContext || editContext.mode !== "edit") return;
+  if (!confirm("Delete this session?")) return;
+  state.entries.splice(editContext.entryIdx, 1);
+  save(); renderAll(); closeEditModal();
+});
+
+el("#stop-now-btn").addEventListener("click", () => {
+  if (!editContext || editContext.mode !== "running" || !state.running) return;
+  // Apply any start-time edit first, then stop
+  const startStr = el("#edit-start").value;
+  if (startStr) {
+    const startMs = fromLocalInput(startStr);
+    if (!isNaN(startMs) && startMs <= Date.now()) state.running.start = startMs;
+  }
+  const projectId = el("#edit-project").value;
+  if (projectId && state.projects.find(p => p.id === projectId)) state.running.projectId = projectId;
+  stopTimer();
+  closeEditModal();
+});
+
+// + Add session buttons (Track and Reports)
+els(".add-session-btn").forEach(btn => {
+  btn.addEventListener("click", () => openEditModal({ mode: "add" }));
+});
+
+/* ---------------- Export / Import ---------------- */
+function updateDataInfo() {
+  const n = state.entries.length;
+  const p = state.projects.length;
+  let earliest = null;
+  for (const e of state.entries) { if (earliest == null || e.start < earliest) earliest = e.start; }
+  const since = earliest ? new Date(earliest).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null;
+  el("#data-info").textContent = n === 0
+    ? `${p} project${p === 1 ? "" : "s"}, no time entries yet.`
+    : `${p} project${p === 1 ? "" : "s"}, ${n} session${n === 1 ? "" : "s"} since ${since}.`;
+}
+
+el("#export-btn").addEventListener("click", () => {
+  const payload = {
+    app: "TimeTracker",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    projects: state.projects,
+    entries: state.entries
+    // Note: running session is intentionally not exported
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `time-tracker-backup-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+});
+
+el("#import-btn").addEventListener("click", () => el("#import-file").click());
+
+el("#import-file").addEventListener("change", (ev) => {
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = ""; // allow re-selecting the same file later
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      // Validate shape
+      if (!data || !Array.isArray(data.projects) || !Array.isArray(data.entries)) {
+        throw new Error("File doesn't look like a Time Tracker backup.");
+      }
+      for (const p of data.projects) {
+        if (typeof p.id !== "string" || typeof p.name !== "string" || typeof p.color !== "string") {
+          throw new Error("Project entries are malformed.");
+        }
+      }
+      const projIds = new Set(data.projects.map(p => p.id));
+      for (const e of data.entries) {
+        if (typeof e.projectId !== "string" || typeof e.start !== "number" || typeof e.end !== "number") {
+          throw new Error("Session entries are malformed.");
+        }
+        if (!projIds.has(e.projectId)) {
+          throw new Error("A session references an unknown project.");
+        }
+        if (e.end <= e.start) {
+          throw new Error("A session has end time before start time.");
+        }
+      }
+      const summary = `${data.projects.length} project(s), ${data.entries.length} session(s)`;
+      if (!confirm(`Replace your current data with this backup?\n\n${summary}\n\nThis cannot be undone. (Tip: export your current data first as a safety net.)`)) return;
+      // If a timer is running, stop it without saving so we don't mix data
+      if (state.running) state.running = null;
+      state = {
+        projects: data.projects,
+        entries: data.entries,
+        activeProjectId: data.projects[0] ? data.projects[0].id : null,
+        running: null
+      };
+      currentRangeOffset = 0;
+      save(); renderAll();
+      alert(`Imported ${summary}.`);
+    } catch (err) {
+      alert("Import failed: " + (err.message || err));
+    }
+  };
+  reader.onerror = () => alert("Couldn't read the file.");
+  reader.readAsText(file);
+});
+el("#add-project-btn").addEventListener("click", () => {
+  const input = el("#new-project-input"); const name = input.value.trim(); if (!name) return;
+  const used = state.projects.map(p => p.color);
+  const color = COLORS.find(c => !used.includes(c)) || COLORS[state.projects.length % COLORS.length];
+  const p = { id: id(), name, color }; state.projects.push(p); state.activeProjectId = p.id;
+  input.value = ""; save(); renderAll();
+});
+el("#new-project-input").addEventListener("keydown", e => { if (e.key === "Enter") el("#add-project-btn").click(); });
+
+let currentView = "track";
+els("nav.tabbar button").forEach(btn => btn.addEventListener("click", () => {
+  currentView = btn.dataset.view;
+  els("nav.tabbar button").forEach(b => b.classList.toggle("active", b === btn));
+  els(".view").forEach(v => v.classList.remove("active"));
+  el("#view-" + currentView).classList.add("active");
+  renderAll();
+}));
+let currentRange = "day";
+let currentRangeOffset = 0; // 0 = current period, 1 = one back, etc.
+els(".report-tabs button").forEach(btn => btn.addEventListener("click", () => {
+  currentRange = btn.dataset.range;
+  currentRangeOffset = 0; // reset to current when switching range type
+  els(".report-tabs button").forEach(b => b.classList.toggle("active", b === btn));
+  renderReports();
+}));
+
+el("#period-prev").addEventListener("click", () => { currentRangeOffset += 1; renderReports(); });
+el("#period-next").addEventListener("click", () => {
+  if (currentRangeOffset > 0) { currentRangeOffset -= 1; renderReports(); }
+});
+// Tap the period label to jump back to current
+el("#period-label").addEventListener("click", () => {
+  if (currentRangeOffset !== 0) { currentRangeOffset = 0; renderReports(); }
+});
+
+function renderAll() { renderHeader(); renderPills(); renderTimer(); renderTodayList(); renderTrackSessions(); renderReports(); renderProjects(); updateDataInfo(); }
+renderAll();
+setInterval(() => { if (state.running) { updateTimerDisplay();
+  if (currentView === "track") { renderTodayList(); renderTrackSessions(); }
+  if (currentView === "reports") renderReports(); } }, 1000);
+window.addEventListener("beforeunload", save);
+
+/* ---------------- Cloud sync wiring ---------------- */
+
+// Heuristic: does `incoming` look suspiciously emptier than `current`?
+// Used to avoid silently overwriting a richer local/cloud state with a near-empty one
+// (e.g. a fresh device/browser pushing its brand-new default state over real data).
+function looksLikeDataLoss(current, incoming) {
+  if (!current || !incoming) return false;
+  const curEntries = Array.isArray(current.entries) ? current.entries.length : 0;
+  const incEntries = Array.isArray(incoming.entries) ? incoming.entries.length : 0;
+  const curProjects = Array.isArray(current.projects) ? current.projects.length : 0;
+  const incProjects = Array.isArray(incoming.projects) ? incoming.projects.length : 0;
+  // Flag it if the incoming side has noticeably fewer sessions AND fewer (or default-only) projects
+  // than what we already have. A single drop in either dimension alone is too noisy (e.g. legit deletes),
+  // so we require both signals together, with entries being the stronger one.
+  if (curEntries > 0 && incEntries === 0 && curEntries >= 1) return true;
+  if (curEntries >= 5 && incEntries < curEntries / 2 && incProjects <= curProjects) return true;
+  if (curProjects > 1 && incProjects <= 1) return true;
+  return false;
+}
+
+// Replace local state with whatever's in cloud (used on first load, and on visibility-return when no pending local changes).
+function applyCloudState(cloud, opts = {}) {
+  if (!cloud || !cloud.data) return false;
+  const incoming = cloud.data;
+  if (!incoming.projects || !Array.isArray(incoming.projects) || incoming.projects.length === 0) return false;
+
+  if (!opts.force && looksLikeDataLoss(state, incoming)) {
+    const curSummary = `${(state.projects||[]).length} project(s), ${(state.entries||[]).length} session(s)`;
+    const cloudSummary = `${incoming.projects.length} project(s), ${(incoming.entries||[]).length} session(s)`;
+    const keepLocal = confirm(
+      `Heads up: the cloud backup looks smaller than what's on this device.\n\n` +
+      `This device: ${curSummary}\nCloud: ${cloudSummary}\n\n` +
+      `Tap OK to KEEP this device's data (and push it to the cloud).\n` +
+      `Tap Cancel to load the cloud data instead (this device's data will be replaced).`
+    );
+    if (keepLocal) {
+      // Re-push local state to cloud instead of accepting the smaller incoming data.
+      lastCloudUpdatedAt = cloud.updated_at; // avoid an immediate re-trigger loop
+      queueUpload();
+      return false;
+    }
+    // else: user explicitly chose to accept the smaller cloud data — fall through and apply it.
+  }
+
+  applyingCloud = true;
+  state = incoming;
+  if (!state.activeProjectId || !state.projects.find(p => p.id === state.activeProjectId)) {
+    state.activeProjectId = state.projects[0].id;
+  }
+  lastCloudUpdatedAt = cloud.updated_at;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  renderAll();
+  applyingCloud = false;
+  return true;
+}
+
+// First load: pull cloud; if cloud has data, use it. If cloud is empty, push our local up.
+async function initialCloudSync() {
+  const cloud = await cloudFetch();
+  if (cloud && cloud.data && Array.isArray(cloud.data.projects) && cloud.data.projects.length > 0) {
+    applyCloudState(cloud);
+  } else {
+    // Cloud is empty (first run on a fresh Supabase row). Push what we have.
+    queueUpload();
+  }
+}
+
+// When the app regains focus (e.g. switching back to it on the other device), refresh.
+document.addEventListener("visibilitychange", async () => {
+  if (document.hidden) return;
+  if (pendingUpload) {
+    // We still have local changes that haven't been written to cloud — push first instead of pulling.
+    await cloudUpload(state);
+    return;
+  }
+  const cloud = await cloudFetch();
+  if (!cloud || !cloud.data) return;
+  if (cloud.updated_at !== lastCloudUpdatedAt) {
+    applyCloudState(cloud);
+  }
+});
+
+initialCloudSync();
+</script>
+</body>
+</html>
